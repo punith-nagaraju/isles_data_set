@@ -3,7 +3,6 @@ import numpy as np
 import nibabel as nib
 import torch
 from torch.utils.data import Dataset
-import cv2
 
 class ISLESDataset3D(Dataset):
     def __init__(self, root_dir):
@@ -35,33 +34,20 @@ class ISLESDataset3D(Dataset):
 
     def __getitem__(self, idx):
         sample = self.samples[idx]
-        dwi = nib.load(sample["dwi"]).get_fdata()
-        flair = nib.load(sample["flair"]).get_fdata()
-        mask = nib.load(sample["mask"]).get_fdata()
-        # Crop to minimum shape
-       # After normalization, before stacking:
-        crop_shape = (64, 64, 16)  # or smaller if needed
-        dwi = dwi[:crop_shape[0], :crop_shape[1], :crop_shape[2]]
-        flair = flair[:crop_shape[0], :crop_shape[1], :crop_shape[2]]
-        mask = mask[:crop_shape[0], :crop_shape[1], :crop_shape[2]]
-        # Pad to be divisible by 16
-        def pad_to_16(arr):
-            pad = [(0, (16 - s % 16) % 16) for s in arr.shape]
-            return np.pad(arr, pad, mode='constant')
-        dwi = pad_to_16(dwi)
-        flair = pad_to_16(flair)
-        mask = pad_to_16(mask)
-        # Normalize
-        dwi = (dwi - dwi.mean()) / (dwi.std() + 1e-5)
-        flair = (flair - flair.mean()) / (flair.std() + 1e-5)
-        x = np.stack(imgs, axis=0).astype(np.float32)  # [channels, H, W]
-        y = (mask > 0).astype(np.float32)
-         if self.transform:
-        augmented = self.transform(image=x.transpose(1,2,0), mask=mask)
-        x = augmented['image']  # [channels, H, W] if ToTensorV2 is used
-        mask = augmented['mask']
-        else:
-            x = torch.tensor(x)
-            mask = torch.tensor(mask)
-        return x, mask
+        dwi = self.load_nifti(sample["dwi"])    # [H, W, D]
+        flair = self.load_nifti(sample["flair"])  # [H, W, D]
+    
+        # Crop both to the minimum shape
+        min_shape = np.minimum(dwi.shape, flair.shape)
+        dwi_cropped = dwi[:min_shape[0], :min_shape[1], :min_shape[2]]
+        flair_cropped = flair[:min_shape[0], :min_shape[1], :min_shape[2]]
+    
+        x = np.stack([dwi_cropped, flair_cropped], axis=0)  # [2, H, W, D]
+        y = self.load_nifti(sample["mask"])
+        y = y[:min_shape[0], :min_shape[1], :min_shape[2]]  # Crop mask to match
+    
+        return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)
 
+    @staticmethod
+    def load_nifti(path):
+        return np.asarray(nib.load(path).get_fdata(), dtype=np.float32)

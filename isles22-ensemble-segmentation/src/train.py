@@ -12,7 +12,9 @@ def train_one_epoch(model, loader, optimizer, device):
     model.train()
     bce = nn.BCELoss()
     for x, y in loader:
-        x, y = x.to(device, dtype=torch.float), y.to(device, dtype=torch.float)
+        x, y = x.to(DEVICE, dtype=torch.float), y.to(DEVICE, dtype=torch.float)
+        x = x[..., x.shape[-1] // 2]
+        y = y[..., y.shape[-1] // 2]     
         y = y.unsqueeze(1)
         optimizer.zero_grad()
         out = model(x)
