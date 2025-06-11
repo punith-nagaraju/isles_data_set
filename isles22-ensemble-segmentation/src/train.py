@@ -14,7 +14,9 @@ def train_one_epoch(model, loader, optimizer, device):
     for x, y in loader:
         x, y = x.to(DEVICE, dtype=torch.float), y.to(DEVICE, dtype=torch.float)
         x = x[..., x.shape[-1] // 2]
-        y = y[..., y.shape[-1] // 2]     
+        y = y[..., y.shape[-1] // 2]  
+        if x.shape[1] > 2:
+             x = x[:, :2, ...]   
         y = y.unsqueeze(1)
         optimizer.zero_grad()
         out = model(x)
